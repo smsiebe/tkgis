@@ -1,0 +1,121 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tkgis"
+version = "0.1.0"
+description = "A Python tkinter-based desktop GIS workbench for raster and vector geospatial data."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Steven Siebert"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "customtkinter>=5.2.0",
+    "ttkbootstrap>=1.10.0",
+    "Pillow>=10.0.0",
+    "geopandas>=0.14.0",
+    "pyogrio>=0.7.0",
+    "pyproj>=3.6.0",
+    "grdl>=0.1.0",
+    "grdl-runtime>=0.1.0",
+    "matplotlib>=3.7.0",
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "pandas>=2.0.0",
+    "pydantic>=2.0.0",
+    "PyYAML>=6.0",
+    "rasterio>=1.3.0",
+    "shapely>=2.0.0",
+]
+
+[project.scripts]
+tkgis = "tkgis.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/geoint-org/tkgis"
+Documentation = "https://github.com/geoint-org/tkgis#readme"
+Issues = "https://github.com/geoint-org/tkgis/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4.0",
+    "mypy>=1.8.0",
+]
+all = [
+    "customtkinter>=5.2.0",
+    "ttkbootstrap>=1.10.0",
+    "Pillow>=10.0.0",
+    "geopandas>=0.14.0",
+    "pyogrio>=0.7.0",
+    "pyproj>=3.6.0",
+    "grdl>=0.1.0",
+    "grdl-runtime>=0.1.0",
+    "matplotlib>=3.7.0",
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "pandas>=2.0.0",
+    "pydantic>=2.0.0",
+    "PyYAML>=6.0",
+    "rasterio>=1.3.0",
+    "shapely>=2.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+tkgis = ["*.md", "py.typed", "resources/*"]
+
+[tool.pytest.ini_options]
+addopts = "-x -q --tb=short"
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "gui: marks tests that require a display/tkinter",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "SIM108", # use ternary operator
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tkgis"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

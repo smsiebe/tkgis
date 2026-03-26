@@ -1,0 +1,12 @@
+include LICENSE
+include README.md
+include pyproject.toml
+include requirements.txt
+include requirements-dev.txt
+
+recursive-include src/tkgis *.py *.md py.typed
+recursive-include src/tkgis/resources *
+
+prune tests
+prune scripts
+prune .github

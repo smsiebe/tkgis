@@ -1,0 +1,55 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-77.0369, 38.9072]},
+      "properties": {"name": "Washington DC", "value": 42.5, "category": "capital"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-73.9857, 40.7484]},
+      "properties": {"name": "New York", "value": 88.1, "category": "metro"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-87.6298, 41.8781]},
+      "properties": {"name": "Chicago", "value": 65.3, "category": "metro"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-118.2437, 34.0522]},
+      "properties": {"name": "Los Angeles", "value": 72.9, "category": "metro"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-95.3698, 29.7604]},
+      "properties": {"name": "Houston", "value": 51.7, "category": "metro"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-112.0740, 33.4484]},
+      "properties": {"name": "Phoenix", "value": 38.2, "category": "metro"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-75.1652, 39.9526]},
+      "properties": {"name": "Philadelphia", "value": 55.0, "category": "metro"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-98.4936, 29.4241]},
+      "properties": {"name": "San Antonio", "value": 44.6, "category": "metro"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-117.1611, 32.7157]},
+      "properties": {"name": "San Diego", "value": 61.8, "category": "metro"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-96.7970, 32.7767]},
+      "properties": {"name": "Dallas", "value": 49.3, "category": "metro"}
+    }
+  ]
+}
