@@ -44,6 +44,11 @@ class DataTableWidget(ctk.CTkFrame):
         self._loaded_start: int = 0
         self._loaded_end: int = 0
 
+        # Non-blocking population state.
+        self._populating: bool = False
+        self._cancel_populating: bool = False
+        self.on_progress: Callable[[int, int], None] | None = None
+
         # --- Treeview + scrollbars ---
         container = ctk.CTkFrame(self)
         container.pack(fill="both", expand=True)
@@ -123,6 +128,11 @@ class DataTableWidget(ctk.CTkFrame):
         """Number of currently selected rows."""
         return len(self._selected_indices)
 
+    @property
+    def is_populating(self) -> bool:
+        """True if the table is currently being populated in the background."""
+        return self._populating
+
     # ------------------------------------------------------------------
     # Selection helpers
     # ------------------------------------------------------------------
@@ -153,20 +163,42 @@ class DataTableWidget(ctk.CTkFrame):
 
     def _rebuild(self) -> None:
         """Recompute the display DataFrame and repopulate the Treeview."""
-        df = self._df
+        # Cancel any ongoing population.
+        if self._populating:
+            self._cancel_populating = True
 
-        # Apply filter mask.
-        if self._mask is not None:
-            # Align mask to current df index.
-            aligned = self._mask.reindex(df.index, fill_value=False)
+        df = self._df
+        mask = self._mask
+        sort_column = self._sort_column
+        sort_ascending = self._sort_ascending
+
+        if len(df) > _VIRTUAL_THRESHOLD:
+            # Run in background
+            if not hasattr(self, "_executor"):
+                from concurrent.futures import ThreadPoolExecutor
+                self._executor = ThreadPoolExecutor(max_workers=1)
+            
+            def task() -> None:
+                res = self._bg_rebuild(df, mask, sort_column, sort_ascending)
+                self.after(0, lambda: self._apply_rebuild(res))
+                
+            self._executor.submit(task)
+        else:
+            res = self._bg_rebuild(df, mask, sort_column, sort_ascending)
+            self._apply_rebuild(res)
+
+    def _bg_rebuild(self, df: pd.DataFrame, mask: pd.Series | None, sort_column: str | None, sort_ascending: bool) -> pd.DataFrame:
+        if mask is not None:
+            aligned = mask.reindex(df.index, fill_value=False)
             df = df.loc[aligned]
 
-        # Apply sort.
-        if self._sort_column and self._sort_column in df.columns:
+        if sort_column and sort_column in df.columns:
             df = df.sort_values(
-                self._sort_column, ascending=self._sort_ascending, na_position="last"
+                sort_column, ascending=sort_ascending, na_position="last"
             )
+        return df
 
+    def _apply_rebuild(self, df: pd.DataFrame) -> None:
         self._display_df = df
         self._virtual = len(df) > _VIRTUAL_THRESHOLD
 
@@ -194,13 +226,34 @@ class DataTableWidget(ctk.CTkFrame):
 
     def _insert_range(self, start: int, end: int) -> None:
         """Insert rows from *start* to *end* (exclusive) of ``_display_df``."""
-        df = self._display_df
-        if df.empty:
+        if self._display_df.empty:
             return
-        subset = df.iloc[start:end]
+        
+        self._populating = True
+        self._cancel_populating = False
+        self._insert_chunk(start, end, chunk_size=50)
+
+    def _insert_chunk(self, start: int, end: int, chunk_size: int) -> None:
+        """Insert a single chunk and schedule the next one."""
+        if self._cancel_populating:
+            self._populating = False
+            self._cancel_populating = False
+            return
+
+        next_end = min(start + chunk_size, end)
+        subset = self._display_df.iloc[start:next_end]
+        
         for idx, row in subset.iterrows():
             values = [self._format_cell(v) for v in row.values]
             self._tree.insert("", "end", iid=str(idx), values=values)
+
+        if self.on_progress:
+            self.on_progress(next_end, end)
+
+        if next_end < end:
+            self.after(1, lambda: self._insert_chunk(next_end, end, chunk_size))
+        else:
+            self._populating = False
 
     @staticmethod
     def _format_cell(value: Any) -> str:

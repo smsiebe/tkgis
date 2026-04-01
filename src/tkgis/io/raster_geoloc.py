@@ -57,7 +57,11 @@ class RasterGeolocationBridge:
             extras = getattr(md, "extras", None)
             if extras is None or not isinstance(extras, dict):
                 extras = md.get("extras", {}) if hasattr(md, "get") else {}
-            transform = extras.get("transform") if isinstance(extras, dict) else None
+            
+            transform = getattr(md, "transform", None)
+            if transform is None:
+                transform = extras.get("transform") if isinstance(extras, dict) else None
+            
             crs_str = getattr(md, "crs", None)
             if crs_str is None and hasattr(md, "get"):
                 crs_str = md.get("crs", None)

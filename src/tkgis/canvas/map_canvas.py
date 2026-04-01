@@ -58,7 +58,7 @@ class MapCanvas(tk.Canvas):
         self._view = ViewTransform()
 
         # Keep references to PhotoImages so they are not garbage-collected
-        self._photo_refs: list[Any] = []
+        self._photo_refs: dict[str, Any] = {}
 
         # Background tile loading
         self._executor = ThreadPoolExecutor(max_workers=2)
@@ -169,6 +169,7 @@ class MapCanvas(tk.Canvas):
 
     def _place_tile(
         self,
+        key: TileKey,
         photo: Any,
         layer: Layer,
         lbounds: Any,
@@ -182,8 +183,15 @@ class MapCanvas(tk.Canvas):
         mx = lbounds.xmin + col * tile_w_map
         my = lbounds.ymax - row * tile_h_map  # top edge
         sx, sy = self._view.map_to_screen(mx, my)
-        self.create_image(sx, sy, anchor="nw", image=photo, tags=("tile",))
-        self._photo_refs.append(photo)
+
+        tag = f"tk_tile_{key.layer_id}_{key.zoom_level}_{key.tile_row}_{key.tile_col}"
+        existing = self.find_withtag(tag)
+        if existing:
+            self.coords(existing[0], sx, sy)
+        else:
+            self.create_image(sx, sy, anchor="nw", image=photo, tags=("tile", tag))
+        
+        self._photo_refs[tag] = photo
 
     def _load_tile_async(
         self,
@@ -250,7 +258,7 @@ class MapCanvas(tk.Canvas):
             return
 
         self._tile_cache.put(key, photo)
-        self._place_tile(photo, layer, lbounds, row, col, tile_w_map, tile_h_map)
+        self._place_tile(key, photo, layer, lbounds, row, col, tile_w_map, tile_h_map)
 
     # ------------------------------------------------------------------
     # Event handlers

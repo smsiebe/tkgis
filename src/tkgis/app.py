@@ -28,6 +28,10 @@ from tkgis.plugins.base import PluginContext
 from tkgis.plugins.manager import PluginManager
 from tkgis.plugins.providers import DataProviderRegistry
 
+from tkgis.app_ui.menu_builder import MenuBuilder
+from tkgis.app_ui.toolbar_builder import ToolbarBuilder
+from tkgis.widgets.status_bar import StatusBarWidget
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,6 +47,9 @@ class TkGISApp(ctk.CTk):
 
         # -- core domain objects ----------------------------------------------
         self.event_bus = EventBus()
+        # Wire up invoke_later for thread-safe events to hit the main thread
+        self.event_bus.set_invoke_later(self._invoke_later)
+        
         self.project = Project()
         self.tool_manager = ToolManager(event_bus=self.event_bus)
         self.data_provider_registry = DataProviderRegistry()
@@ -83,10 +90,38 @@ class TkGISApp(ctk.CTk):
         except KeyError:
             pass
 
+        self.event_bus.subscribe(EventType.PROGRESS_UPDATED, self._on_progress_updated)
+
         # -- save geometry on close -------------------------------------------
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         logger.info("tkgis application started.")
+        self.on_startup()
+
+    # ── App Lifecycle Hooks ─────────────────────────────────────────────────
+
+    def on_startup(self) -> None:
+        """Called when the application is fully built and ready."""
+        logger.debug("on_startup hook fired")
+
+    def on_shutdown(self) -> None:
+        """Called right before window destruction."""
+        logger.debug("on_shutdown hook fired")
+        # Deactivate all plugins cleanly
+        for p in self.plugin_manager.list_plugins():
+            if self.plugin_manager.is_enabled(p.name):
+                self.plugin_manager.deactivate(p.name)
+
+    def on_project_change(self) -> None:
+        """Called when a new project is loaded."""
+        logger.debug("on_project_change hook fired")
+        for panel in self.panel_registry.list_panels():
+            if hasattr(panel, "on_project_changed"):
+                panel.on_project_changed(self.project)
+
+    def _invoke_later(self, func: Any) -> None:
+        """Execute a function on the main thread safely."""
+        self.after(0, func)
 
     # ── Component wiring ────────────────────────────────────────────────────
 
@@ -177,112 +212,13 @@ class TkGISApp(ctk.CTk):
         self.bind("<Control-s>", lambda e: self._action_save_project())
         self.bind("<Control-l>", lambda e: self._action_add_layer())
 
-    # ── Menu bar ────────────────────────────────────────────────────────────
+    # ── UI Construction ─────────────────────────────────────────────────────
 
     def _build_menu_bar(self) -> None:
-        self._menubar = tk.Menu(self, tearoff=False)
-        self.configure(menu=self._menubar)  # type: ignore[arg-type]
-
-        # File
-        file_menu = tk.Menu(self._menubar, tearoff=False)
-        file_menu.add_command(label="New Project", command=lambda: self._menu_action("File > New Project"), accelerator="Ctrl+N")
-        file_menu.add_command(label="Open Project\u2026", command=lambda: self._menu_action("File > Open Project"), accelerator="Ctrl+O")
-        file_menu.add_separator()
-        file_menu.add_command(label="Save Project", command=lambda: self._menu_action("File > Save Project"), accelerator="Ctrl+S")
-        file_menu.add_command(label="Save Project As\u2026", command=lambda: self._menu_action("File > Save Project As"))
-        file_menu.add_separator()
-        file_menu.add_command(label="Add Layer\u2026", command=lambda: self._menu_action("File > Add Layer"), accelerator="Ctrl+L")
-        file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self._on_close)
-        self._menubar.add_cascade(label="File", menu=file_menu)
-
-        # Edit
-        edit_menu = tk.Menu(self._menubar, tearoff=False)
-        edit_menu.add_command(label="Undo", command=lambda: self._menu_action("Edit > Undo"))
-        edit_menu.add_command(label="Redo", command=lambda: self._menu_action("Edit > Redo"))
-        edit_menu.add_separator()
-        edit_menu.add_command(label="Copy", command=lambda: self._menu_action("Edit > Copy"))
-        edit_menu.add_command(label="Paste", command=lambda: self._menu_action("Edit > Paste"))
-        edit_menu.add_separator()
-        edit_menu.add_command(label="Preferences\u2026", command=lambda: self._menu_action("Edit > Preferences"))
-        self._menubar.add_cascade(label="Edit", menu=edit_menu)
-
-        # View
-        view_menu = tk.Menu(self._menubar, tearoff=False)
-        view_menu.add_command(label="Zoom In", command=lambda: self._menu_action("View > Zoom In"))
-        view_menu.add_command(label="Zoom Out", command=lambda: self._menu_action("View > Zoom Out"))
-        view_menu.add_command(label="Zoom to Fit", command=lambda: self._menu_action("View > Zoom to Fit"))
-        view_menu.add_separator()
-
-        # Theme submenu
-        theme_menu = tk.Menu(view_menu, tearoff=False)
-        theme_menu.add_command(label="Dark", command=lambda: self._set_theme("dark"))
-        theme_menu.add_command(label="Light", command=lambda: self._set_theme("light"))
-        theme_menu.add_command(label="System", command=lambda: self._set_theme("system"))
-        view_menu.add_cascade(label="Theme", menu=theme_menu)
-
-        view_menu.add_separator()
-        view_menu.add_command(label="Toggle Log Console", command=lambda: self._toggle_panel("log_console"))
-        self._menubar.add_cascade(label="View", menu=view_menu)
-        self._view_menu = view_menu
-
-        # Layer
-        layer_menu = tk.Menu(self._menubar, tearoff=False)
-        layer_menu.add_command(label="Add Raster Layer\u2026", command=lambda: self._menu_action("Layer > Add Raster Layer"))
-        layer_menu.add_command(label="Add Vector Layer\u2026", command=lambda: self._menu_action("Layer > Add Vector Layer"))
-        layer_menu.add_separator()
-        layer_menu.add_command(label="Remove Layer", command=lambda: self._menu_action("Layer > Remove Layer"))
-        layer_menu.add_command(label="Layer Properties\u2026", command=lambda: self._menu_action("Layer > Layer Properties"))
-        self._menubar.add_cascade(label="Layer", menu=layer_menu)
-
-        # Processing
-        proc_menu = tk.Menu(self._menubar, tearoff=False)
-        proc_menu.add_command(label="Toolbox\u2026", command=lambda: self._menu_action("Processing > Toolbox"))
-        proc_menu.add_command(label="Workflow Builder\u2026", command=lambda: self._menu_action("Processing > Workflow Builder"))
-        proc_menu.add_separator()
-        proc_menu.add_command(label="Run Workflow\u2026", command=lambda: self._menu_action("Processing > Run Workflow"))
-        self._menubar.add_cascade(label="Processing", menu=proc_menu)
-
-        # Plugins
-        plugin_menu = tk.Menu(self._menubar, tearoff=False)
-        plugin_menu.add_command(label="Plugin Manager\u2026", command=lambda: self._menu_action("Plugins > Plugin Manager"))
-        self._menubar.add_cascade(label="Plugins", menu=plugin_menu)
-
-        # Help
-        help_menu = tk.Menu(self._menubar, tearoff=False)
-        help_menu.add_command(label="Documentation", command=lambda: self._menu_action("Help > Documentation"))
-        help_menu.add_command(label="About tkgis", command=lambda: self._menu_action("Help > About"))
-        self._menubar.add_cascade(label="Help", menu=help_menu)
-
-    # ── Toolbar ─────────────────────────────────────────────────────────────
+        MenuBuilder.build(self)
 
     def _build_toolbar(self) -> None:
-        self._toolbar = ctk.CTkFrame(self, height=36, corner_radius=0)
-        self._toolbar.pack(fill="x", side="top")
-
-        groups: dict[str, list[tuple[str, str]]] = {
-            "File": [("New", "File > New Project"), ("Open", "File > Open Project"), ("Save", "File > Save Project")],
-            "Navigation": [("Zoom+", "View > Zoom In"), ("Zoom-", "View > Zoom Out"), ("Fit", "View > Zoom to Fit")],
-            "Selection": [("Select", "Selection > Select"), ("Identify", "Selection > Identify")],
-            "Measurement": [("Distance", "Measure > Distance"), ("Area", "Measure > Area")],
-            "Processing": [("Toolbox", "Processing > Toolbox"), ("Workflow", "Processing > Workflow Builder")],
-        }
-
-        for group_name, buttons in groups.items():
-            sep = ctk.CTkFrame(self._toolbar, width=1, height=24, fg_color="gray50")
-            sep.pack(side="left", padx=4, pady=4)
-            for label, action in buttons:
-                btn = ctk.CTkButton(
-                    self._toolbar,
-                    text=label,
-                    width=60,
-                    height=26,
-                    font=("", 11),
-                    command=lambda a=action: self._menu_action(a),
-                )
-                btn.pack(side="left", padx=1, pady=4)
-
-    # ── Main layout (PanedWindow) ───────────────────────────────────────────
+        self._toolbar = ToolbarBuilder.build(self)
 
     def _build_main_layout(self) -> None:
         # Outer vertical paned window (main area / bottom panel)
@@ -296,12 +232,8 @@ class TkGISApp(ctk.CTk):
         # Left panel container
         self._left_panel_frame = ctk.CTkFrame(self._hpaned, width=LEFT_PANEL_WIDTH)
         self._left_panel_frame.pack_propagate(False)
-        ctk.CTkLabel(self._left_panel_frame, text="Layers", font=("", 13, "bold")).pack(
-            pady=6
-        )
-        ctk.CTkLabel(self._left_panel_frame, text="(Layer tree placeholder)").pack(
-            expand=True
-        )
+        ctk.CTkLabel(self._left_panel_frame, text="Layers", font=("", 13, "bold")).pack(pady=6)
+        ctk.CTkLabel(self._left_panel_frame, text="(Layer tree placeholder)").pack(expand=True)
         self._hpaned.add(self._left_panel_frame, width=LEFT_PANEL_WIDTH, stretch="never")
 
         # Center (map placeholder)
@@ -317,12 +249,8 @@ class TkGISApp(ctk.CTk):
         # Right panel container
         self._right_panel_frame = ctk.CTkFrame(self._hpaned, width=RIGHT_PANEL_WIDTH)
         self._right_panel_frame.pack_propagate(False)
-        ctk.CTkLabel(self._right_panel_frame, text="Properties", font=("", 13, "bold")).pack(
-            pady=6
-        )
-        ctk.CTkLabel(self._right_panel_frame, text="(Properties placeholder)").pack(
-            expand=True
-        )
+        ctk.CTkLabel(self._right_panel_frame, text="Properties", font=("", 13, "bold")).pack(pady=6)
+        ctk.CTkLabel(self._right_panel_frame, text="(Properties placeholder)").pack(expand=True)
         self._hpaned.add(self._right_panel_frame, width=RIGHT_PANEL_WIDTH, stretch="never")
 
         # Bottom panel container
@@ -330,63 +258,31 @@ class TkGISApp(ctk.CTk):
         self._bottom_panel_frame.pack_propagate(False)
         self._vpaned.add(self._bottom_panel_frame, height=BOTTOM_PANEL_HEIGHT, stretch="never")
 
-    # ── Status bar ──────────────────────────────────────────────────────────
-
     def _build_status_bar(self) -> None:
-        self._status_bar = ctk.CTkFrame(self, height=STATUS_BAR_HEIGHT, corner_radius=0)
+        self._status_bar = StatusBarWidget(self)
         self._status_bar.pack(fill="x", side="bottom")
-        self._status_bar.pack_propagate(False)
-
-        # Coordinate display
-        self._coord_label = ctk.CTkLabel(
-            self._status_bar, text="X: 0.000000  Y: 0.000000", font=("Consolas", 11), width=220
-        )
-        self._coord_label.pack(side="left", padx=8)
-
-        # Separator
-        ctk.CTkFrame(self._status_bar, width=1, height=18, fg_color="gray50").pack(
-            side="left", padx=4, pady=4
-        )
-
-        # CRS indicator
-        self._crs_label = ctk.CTkLabel(
-            self._status_bar, text="EPSG:4326", font=("", 11), width=100
-        )
-        self._crs_label.pack(side="left", padx=8)
-
-        # Separator
-        ctk.CTkFrame(self._status_bar, width=1, height=18, fg_color="gray50").pack(
-            side="left", padx=4, pady=4
-        )
-
-        # Scale display
-        self._scale_label = ctk.CTkLabel(
-            self._status_bar, text="1:1", font=("", 11), width=80
-        )
-        self._scale_label.pack(side="left", padx=8)
-
-        # Progress bar (right-aligned)
-        self._progress_bar = ctk.CTkProgressBar(self._status_bar, width=160, height=12)
-        self._progress_bar.pack(side="right", padx=8, pady=8)
-        self._progress_bar.set(0)
 
     # ── Status bar public methods ───────────────────────────────────────────
 
     def update_coordinates(self, x: float, y: float) -> None:
         """Update the coordinate readout in the status bar."""
-        self._coord_label.configure(text=f"X: {x:.6f}  Y: {y:.6f}")
+        self._status_bar.update_coordinates(x, y)
 
     def update_crs(self, name: str) -> None:
         """Update the CRS indicator in the status bar."""
-        self._crs_label.configure(text=name)
+        self._status_bar.update_crs(name)
 
     def update_scale(self, scale: float) -> None:
         """Update the scale display in the status bar."""
-        self._scale_label.configure(text=f"1:{scale:,.0f}")
+        self._status_bar.update_scale(scale)
 
     def show_progress(self, value: float, maximum: float = 100.0) -> None:
         """Set the progress bar.  Pass value == maximum to complete."""
-        self._progress_bar.set(value / maximum if maximum else 0)
+        self._status_bar.show_progress(value, maximum)
+
+    def _on_progress_updated(self, *, value: float, maximum: float, **_kwargs: Any) -> None:
+        """Handle global progress event."""
+        self.show_progress(value, maximum)
 
     # ── Panel management ────────────────────────────────────────────────────
 
@@ -420,6 +316,7 @@ class TkGISApp(ctk.CTk):
         self.project = Project()
         self.title(f"{APP_NAME} \u2014 {self.project.name}")
         self.event_bus.emit(EventType.PROJECT_LOADED)
+        self.on_project_change()
         logger.info("New project created.")
 
     def _action_open_project(self) -> None:
@@ -433,6 +330,7 @@ class TkGISApp(ctk.CTk):
                 self.project = Project.load(path)
                 self.title(f"{APP_NAME} \u2014 {self.project.name}")
                 self.event_bus.emit(EventType.PROJECT_LOADED)
+                self.on_project_change()
                 self.config.add_recent_file(path)
                 self.config.save()
                 logger.info("Project opened: %s", path)
@@ -507,6 +405,7 @@ class TkGISApp(ctk.CTk):
     # ── Lifecycle ───────────────────────────────────────────────────────────
 
     def _on_close(self) -> None:
+        self.on_shutdown()
         self.config.window_geometry = self.geometry()
         self.config.save()
         logger.info("tkgis shutting down.")

@@ -162,7 +162,8 @@ src/tkgis/                           ~85 files, 15 modules
 │   └── time_series.py                 Time series chart
 │
 ├── workflow/                        Visual DAG workflow builder
-│   ├── canvas.py                      Node graph canvas (tkinter Canvas, pan/zoom)
+│   ├── canvas.py                      Node graph canvas and renderers
+│   ├── models_fallback.py             Fallback models when grdl-runtime is unavailable
 │   ├── palette.py                     Node palette (catalog browser, search, categories)
 │   ├── inspector.py                   Node property inspector (auto-generated from __param_specs__)
 │   ├── edges.py                       Edge rendering and connection logic (bezier curves)

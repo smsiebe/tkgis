@@ -93,9 +93,30 @@ class VectorLayerData:
         """Non-geometry column names."""
         return [c for c in self._gdf.columns if c != self._gdf.geometry.name]
 
+    @property
+    def gdf_4326(self) -> gpd.GeoDataFrame:
+        """Return the GeoDataFrame reprojected to EPSG:4326, cached."""
+        if not hasattr(self, "_gdf_4326"):
+            epsg = self._gdf.crs.to_epsg() if self._gdf.crs else None
+            if epsg != 4326:
+                self._gdf_4326 = self._gdf.to_crs("EPSG:4326")
+            else:
+                self._gdf_4326 = self._gdf
+        return self._gdf_4326
+
     # ------------------------------------------------------------------
     # Spatial queries
     # ------------------------------------------------------------------
+
+    def get_features_in_bbox_4326(self, bbox: BoundingBox, buffer: float = 0.0) -> gpd.GeoDataFrame:
+        """Return EPSG:4326 features whose geometry intersects *bbox*."""
+        query_box = box(bbox.xmin - buffer, bbox.ymin - buffer, bbox.xmax + buffer, bbox.ymax + buffer)
+        gdf = self.gdf_4326
+        sindex = gdf.sindex
+        possible_matches_index = list(sindex.intersection(query_box.bounds))
+        possible_matches = gdf.iloc[possible_matches_index]
+        mask = possible_matches.intersects(query_box)
+        return possible_matches[mask].copy()
 
     def get_features_in_bbox(self, bbox: BoundingBox) -> gpd.GeoDataFrame:
         """Return features whose geometry intersects *bbox*."""

@@ -89,14 +89,10 @@ class VectorTileProvider(TileProvider):
         """Render vector features into an RGBA tile array."""
         tile_bbox = _tile_bounds_epsg4326(zoom_level, row, col)
 
-        # Ensure vector data is in EPSG:4326 for tile math
-        vdata = self._vector_data
-        if vdata.gdf.crs is not None:
-            epsg = vdata.gdf.crs.to_epsg()
-            if epsg is not None and epsg != 4326:
-                vdata = vdata.reproject(4326)
+        # Use the optimized 4326 spatial query with a 10% buffer
+        buffer_val = (tile_bbox.xmax - tile_bbox.xmin) * 0.1
+        features = self._vector_data.get_features_in_bbox_4326(tile_bbox, buffer=buffer_val)
 
-        features = vdata.get_features_in_bbox(tile_bbox)
         if features.empty:
             return None
 

@@ -86,6 +86,7 @@ class AttributeTablePanel(BasePanel):
 
         # ---- data table ----
         self._table = DataTableWidget(frame)
+        self._table.on_progress = self._on_table_progress
         self._table.pack(fill="both", expand=True, padx=2, pady=2)
 
         # ---- bottom bar: status + toolbar ----
@@ -238,6 +239,23 @@ class AttributeTablePanel(BasePanel):
     # ------------------------------------------------------------------
     # Status bar
     # ------------------------------------------------------------------
+
+    def _on_table_progress(self, current: int, total: int) -> None:
+        """Called by DataTableWidget during population."""
+        if self._status_label is None:
+            return
+
+        if total > 0:
+            if current < total:
+                percent = (current / total) * 100
+                self._status_label.configure(
+                    text=f"Loading... {current}/{total} ({percent:.1f}%)"
+                )
+            else:
+                self._update_status()
+
+            # Emit global progress event.
+            self.event_bus.emit(EventType.PROGRESS_UPDATED, value=float(current), maximum=float(total))
 
     def _update_status(self) -> None:
         """Refresh the status label with current counts."""

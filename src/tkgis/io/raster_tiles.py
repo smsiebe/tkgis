@@ -36,10 +36,17 @@ class RasterTileProvider(TileProvider):
         The tkgis Layer this provider is bound to.
     """
 
-    def __init__(self, reader: Any, geolocation: Any | None, layer: Layer) -> None:
+    def __init__(
+        self,
+        reader: Any,
+        geolocation: Any | None,
+        layer: Layer,
+        interpolation: str = "fast",
+    ) -> None:
         self._reader = reader
         self._geolocation = geolocation
         self._layer = layer
+        self._interpolation = interpolation
         self._pyramid: list[tuple[int, int, int, int]] = []  # per-level info
         self._build_pyramid_info()
 
@@ -153,21 +160,58 @@ class RasterTileProvider(TileProvider):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _downsample(chip: np.ndarray, target: int) -> np.ndarray:
+    def _downsample(self, chip: np.ndarray, target: int) -> np.ndarray:
         """Downsample *chip* so the spatial dimensions do not exceed *target*.
 
-        Uses strided subsampling for speed (no interpolation needed for
-        overview tiles).
+        Uses either 'fast' strided subsampling or high-quality Pillow
+        interpolation.
         """
         if chip.ndim == 2:
             h, w = chip.shape
+        elif chip.ndim == 3:
+            b, h, w = chip.shape
+        else:
+            return chip
+
+        if h <= target and w <= target:
+            return chip
+
+        if getattr(self, "_interpolation", "fast") != "fast":
+            try:
+                from PIL import Image
+
+                resampling_map = {
+                    "bilinear": Image.Resampling.BILINEAR,
+                    "lanczos": Image.Resampling.LANCZOS,
+                    "bicubic": Image.Resampling.BICUBIC,
+                }
+                resample = resampling_map.get(
+                    self._interpolation.lower(), Image.Resampling.BILINEAR
+                )
+
+                if chip.ndim == 2:
+                    img = Image.fromarray(chip)
+                    img.thumbnail((target, target), resample=resample)
+                    return np.array(img)
+                elif chip.ndim == 3:
+                    # (B, H, W) -> (H, W, B) for Pillow
+                    chip_hwb = np.transpose(chip, (1, 2, 0))
+                    img = Image.fromarray(chip_hwb)
+                    img.thumbnail((target, target), resample=resample)
+                    # (H, W, B) -> (B, H, W)
+                    return np.transpose(np.array(img), (2, 0, 1))
+            except Exception:
+                logger.debug(
+                    "Pillow downsampling failed; falling back to strided", exc_info=True
+                )
+
+        # Fallback to strided subsampling
+        if chip.ndim == 2:
             step_r = max(1, h // target)
             step_c = max(1, w // target)
             return chip[::step_r, ::step_c]
         elif chip.ndim == 3:
             # Band-first: (B, H, W)
-            b, h, w = chip.shape
             step_r = max(1, h // target)
             step_c = max(1, w // target)
             return chip[:, ::step_r, ::step_c]

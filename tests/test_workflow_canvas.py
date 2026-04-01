@@ -189,7 +189,7 @@ class TestWorkflowCanvas:
     def test_workflow_canvas_remove_selected(self, tk_root):
         canvas = WorkflowCanvas(tk_root, width=600, height=400)
         step_id = canvas.add_node_at("Median", 100, 100)
-        canvas._selected_node = step_id
+        canvas.state.selected_node = step_id
         canvas.remove_selected_node()
         assert canvas.graph.get_node(step_id) is None
         assert canvas.get_selected_node() is None

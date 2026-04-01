@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections import defaultdict
 from enum import Enum
 from typing import Any, Callable
@@ -26,6 +27,7 @@ class EventType(Enum):
     TOOL_CHANGED = "tool_changed"
     PROGRESS_UPDATED = "progress_updated"
     TIME_STEP_CHANGED = "time_step_changed"
+    ALL = "all"  # Wildcard event for debugging
 
 
 class EventBus:
@@ -36,6 +38,11 @@ class EventBus:
 
     def __init__(self) -> None:
         self._subscribers: dict[EventType, list[Callable[..., Any]]] = defaultdict(list)
+        self._invoke_later: Callable[[Callable[[], None]], None] | None = None
+
+    def set_invoke_later(self, invoke_later: Callable[[Callable[[], None]], None]) -> None:
+        """Register a function to execute callbacks on the main GUI thread."""
+        self._invoke_later = invoke_later
 
     def subscribe(self, event_type: EventType, callback: Callable[..., Any]) -> None:
         """Register *callback* to be called when *event_type* is emitted."""
@@ -51,10 +58,34 @@ class EventBus:
 
     def emit(self, event_type: EventType, **kwargs: Any) -> None:
         """Invoke all subscribers for *event_type* with the given keyword args."""
-        for callback in self._subscribers.get(event_type, []):
+        callbacks = list(self._subscribers.get(event_type, []))
+        if event_type != EventType.ALL:
+            callbacks.extend(self._subscribers.get(EventType.ALL, []))
+
+        for callback in callbacks:
+            t0 = time.perf_counter()
             try:
-                callback(**kwargs)
+                if event_type == EventType.ALL:
+                    callback(event_type=event_type, **kwargs)
+                else:
+                    callback(**kwargs)
             except Exception:
-                logger.exception(
-                    "Error in event handler for %s", event_type.value
-                )
+                logger.exception("Error in event handler for %s", event_type.value)
+            finally:
+                t1 = time.perf_counter()
+                elapsed_ms = (t1 - t0) * 1000.0
+                if elapsed_ms > 50:
+                    logger.warning(
+                        "Slow event handler for %s: %s took %.1f ms",
+                        event_type.value,
+                        callback.__name__ if hasattr(callback, "__name__") else repr(callback),
+                        elapsed_ms,
+                    )
+
+    def thread_safe_emit(self, event_type: EventType, **kwargs: Any) -> None:
+        """Emit an event safely from a background thread."""
+        if self._invoke_later is not None:
+            self._invoke_later(lambda: self.emit(event_type, **kwargs))
+        else:
+            logger.warning("No invoke_later configured; thread_safe_emit falling back to emit")
+            self.emit(event_type, **kwargs)
