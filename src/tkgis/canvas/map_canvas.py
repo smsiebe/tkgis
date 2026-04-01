@@ -69,20 +69,15 @@ class MapCanvas(tk.Canvas):
         self._drag_start_x: int | None = None
         self._drag_start_y: int | None = None
 
-        # Bind events
-        self.bind("<Configure>", self._on_resize)
-        self.bind("<ButtonPress-1>", self._on_press)
-        self.bind("<B1-Motion>", self._on_drag)
-        self.bind("<ButtonRelease-1>", self._on_release)
-        self.bind("<Motion>", self._on_move)
-        self.bind("<MouseWheel>", self._on_scroll)
-        # Linux scroll
-        self.bind("<Button-4>", self._on_scroll_linux)
-        self.bind("<Button-5>", self._on_scroll_linux)
+        self._event_bus.subscribe(EventType.TIME_STEP_CHANGED, self._on_time_changed)
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def _on_time_changed(self, **kwargs: Any) -> None:
+        """Trigger refresh when the global time step changes."""
+        self.refresh()
 
     def set_layers(self, layers: list[Layer]) -> None:
         """Replace the current layer stack and refresh."""

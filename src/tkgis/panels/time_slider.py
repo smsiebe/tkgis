@@ -35,10 +35,12 @@ class TimeSliderPanel(BasePanel):
         self,
         event_bus: EventBus,
         manager: TemporalLayerManager,
+        project: Any | None = None,
     ) -> None:
         super().__init__()
         self._event_bus = event_bus
         self._manager = manager
+        self._project = project
 
         # Time domain — populated via configure().
         self._steps: list[datetime] = []
@@ -54,6 +56,27 @@ class TimeSliderPanel(BasePanel):
         self._time_label: ctk.CTkLabel | None = None
         self._play_btn: ctk.CTkButton | None = None
         self._speed_menu: ctk.CTkOptionMenu | None = None
+
+        self._event_bus.subscribe(EventType.LAYER_ADDED, self._on_layers_changed)
+        self._event_bus.subscribe(EventType.PROJECT_LOADED, self._on_layers_changed)
+
+    def _on_layers_changed(self, **kwargs: Any) -> None:
+        """Scan all project layers for temporal data and update steps."""
+        if not self._project:
+            return
+            
+        all_steps: set[datetime] = set()
+        for layer in self._project.layers:
+            steps = self._manager.get_time_steps(layer)
+            if steps:
+                all_steps.update(steps)
+        
+        if all_steps:
+            self.configure(sorted(list(all_steps)))
+            if not self.visible:
+                # Suggest showing the panel if temporal data is found
+                # In a real app we might auto-show or just wait for user
+                pass
 
     # ------------------------------------------------------------------
     # BasePanel interface

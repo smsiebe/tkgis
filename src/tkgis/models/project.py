@@ -59,6 +59,7 @@ class Project:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     modified_at: str = field(default_factory=lambda: datetime.now().isoformat())
     plugin_state: dict[str, Any] = field(default_factory=dict)
+    selected_layer_id: str | None = None
 
     # ------------------------------------------------------------------
     # Layer operations

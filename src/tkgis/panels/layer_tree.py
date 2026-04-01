@@ -276,6 +276,7 @@ class LayerTreePanel(BasePanel):
             self._opacity_var.set(layer.style.opacity)
         if self._colormap_var is not None:
             self._colormap_var.set(layer.style.colormap or "")
+        self.project.selected_layer_id = sel
         self.event_bus.emit(EventType.LAYER_SELECTED, layer_id=sel)
 
     # ------------------------------------------------------------------

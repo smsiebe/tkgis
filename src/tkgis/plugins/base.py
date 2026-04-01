@@ -25,6 +25,19 @@ class PluginContext:
         self._menu_items: list[tuple[str, str, Callable[..., Any]]] = []
         # Lazy import to avoid circular dependency with providers module
         self._data_provider_registry: Any | None = None
+        self._project: Any | None = None
+
+    # -- properties ----------------------------------------------------------
+
+    @property
+    def project(self) -> Any:
+        """Access the active tkgis Project."""
+        return self._project
+
+    @property
+    def menu_items(self) -> list[tuple[str, str, Callable[..., Any]]]:
+        """Return all registered plugin menu items."""
+        return self._menu_items
 
     # -- registration helpers ------------------------------------------------
 
@@ -59,6 +72,10 @@ class PluginContext:
     def set_data_provider_registry(self, registry: Any) -> None:
         """Wire the live DataProviderRegistry (called during app bootstrap)."""
         self._data_provider_registry = registry
+
+    def set_project(self, project: Any) -> None:
+        """Wire the active Project (called during app bootstrap)."""
+        self._project = project
 
 
 class TkGISPlugin(ABC):

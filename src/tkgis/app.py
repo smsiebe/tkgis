@@ -155,7 +155,11 @@ class TkGISApp(ctk.CTk):
             from tkgis.panels.time_slider import TimeSliderPanel
             from tkgis.temporal.manager import TemporalLayerManager
             temporal_mgr = TemporalLayerManager(event_bus=self.event_bus)
-            panels.append(TimeSliderPanel(event_bus=self.event_bus, manager=temporal_mgr))
+            panels.append(TimeSliderPanel(
+                event_bus=self.event_bus, 
+                manager=temporal_mgr,
+                project=self.project
+            ))
         except Exception:
             logger.debug("TimeSliderPanel could not be instantiated", exc_info=True)
 
@@ -185,12 +189,28 @@ class TkGISApp(ctk.CTk):
         for tool in tools:
             self.tool_manager.register_tool(tool)
 
-    def _setup_plugins(self) -> None:
-        """Load and activate builtin plugins."""
+        # -- setup plugins ----------------------------------------------------
         context = PluginContext()
         context.set_data_provider_registry(self.data_provider_registry)
+        context.set_project(self.project)
         self.plugin_manager = PluginManager(context=context)
         self.plugin_manager.load_all()
+        self._register_plugin_menus(context)
+
+    def _register_plugin_menus(self, context: PluginContext) -> None:
+        """Add plugin-provided items to the existing menu bar."""
+        if not hasattr(self, "_menubar"):
+            return
+            
+        for menu_path, label, callback in context.menu_items:
+            # Find the top-level menu
+            try:
+                # Menus are indexed by label in Tk
+                menu = self.nametowidget(self._menubar.entrycget(menu_path, "menu"))
+                menu.add_command(label=label, command=callback)
+                logger.debug("Added plugin menu item: %s > %s", menu_path, label)
+            except Exception as exc:
+                logger.warning("Could not add plugin menu item %s > %s: %s", menu_path, label, exc)
 
     def _wire_menu_actions(self) -> None:
         """Connect menu items to real actions."""
