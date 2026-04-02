@@ -19,7 +19,7 @@ DEFAULT_THEME: str = "dark"
 
 # Config directory name (under user home)
 CONFIG_DIR_NAME: str = ".tkgis"
-CONFIG_FILE_NAME: str = "config.json"
+CONFIG_FILE_NAME: str = "config.yml"
 
 # Default CRS
 DEFAULT_CRS: str = "EPSG:4326"

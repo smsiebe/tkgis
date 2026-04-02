@@ -1,10 +1,11 @@
 """Application configuration — reads/writes ``~/.tkgis/config.json``."""
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from tkgis.constants import (
     CONFIG_DIR_NAME,
@@ -26,7 +27,7 @@ _DEFAULTS: dict[str, Any] = {
 
 
 class Config:
-    """Manages persistent application settings stored as JSON."""
+    """Manages persistent application settings stored as YAML."""
 
     def __init__(self, config_dir: Path | None = None) -> None:
         if config_dir is None:
@@ -43,10 +44,11 @@ class Config:
         if self._config_path.exists():
             try:
                 with open(self._config_path, "r", encoding="utf-8") as fh:
-                    stored = json.load(fh)
-                self._data.update(stored)
+                    stored = yaml.safe_load(fh)
+                if isinstance(stored, dict):
+                    self._data.update(stored)
                 logger.debug("Config loaded from %s", self._config_path)
-            except (json.JSONDecodeError, OSError) as exc:
+            except (yaml.YAMLError, OSError) as exc:
                 logger.warning("Failed to load config: %s", exc)
         else:
             logger.debug("No config file found; using defaults.")
@@ -56,7 +58,7 @@ class Config:
         try:
             self._config_dir.mkdir(parents=True, exist_ok=True)
             with open(self._config_path, "w", encoding="utf-8") as fh:
-                json.dump(self._data, fh, indent=2)
+                yaml.safe_dump(self._data, fh, default_flow_style=False, sort_keys=False)
             logger.debug("Config saved to %s", self._config_path)
         except OSError as exc:
             logger.warning("Failed to save config: %s", exc)

@@ -68,6 +68,15 @@ pip install tkgis
 
 ### Launch
 
+#### Using Startup Scripts (Recommended)
+The easiest way to launch tkgis is using the provided startup scripts which auto-detect your environment:
+
+- **Linux**: `./tkgis.sh`
+- **Windows**: `.\tkgis.ps1` (PowerShell)
+
+These scripts will attempt to find a `.venv` or a `tkgis` conda environment. If not found, they will prompt you for the location and save your preference in `~/.tkgis/config.yml`.
+
+#### Manual Launch
 ```bash
 tkgis
 # or

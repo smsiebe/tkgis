@@ -200,5 +200,5 @@ tkgis/
 
 - **Platform**: Windows 11 primary, cross-platform secondary
 - **Python**: 3.11+ (match GRDL minimum)
-- **Entry point**: `python -m tkgis` or `tkgis` (console script)
-- **Config directory**: `~/.tkgis/` (config.json, plugins.json, plugins/)
+- **Entry point**: `./tkgis.sh` (Linux), `.\tkgis.ps1` (Windows), `python -m tkgis`, or `tkgis` (console script)
+- **Config directory**: `~/.tkgis/` (config.yml, plugins.json, plugins/)

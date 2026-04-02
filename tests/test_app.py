@@ -1,11 +1,11 @@
 """Tests for the tkgis application shell."""
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
 
 from tkgis.config import Config
 from tkgis.panels.base import BasePanel
@@ -90,7 +90,7 @@ def test_panel_toggle_unknown():
 
 
 def test_config_persistence():
-    """Config round-trips through JSON on disk."""
+    """Config round-trips through YAML on disk."""
     with tempfile.TemporaryDirectory() as tmp:
         config_dir = Path(tmp)
 
@@ -102,9 +102,10 @@ def test_config_persistence():
         cfg1.save()
 
         # Verify file exists
-        config_file = config_dir / "config.json"
+        config_file = config_dir / "config.yml"
         assert config_file.exists()
-        data = json.loads(config_file.read_text())
+        with open(config_file, "r", encoding="utf-8") as fh:
+            data = yaml.safe_load(fh)
         assert data["theme"] == "light"
         assert "/some/path.tif" in data["recent_files"]
 
